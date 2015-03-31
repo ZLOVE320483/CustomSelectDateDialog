@@ -1,0 +1,198 @@
+package com.zlove.wheelview;
+
+import android.app.AlertDialog;
+import android.content.Context;
+import android.content.DialogInterface;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.WindowManager;
+
+import com.zlove.frame.util.ApplicationUtil;
+import com.zlove.frame.util.DateFormatUtil;
+import com.zlove.ui.R;
+
+import java.util.Arrays;
+import java.util.List;
+
+/**
+ * Created by ZLOVE on 2015/3/30.
+ */
+public class CommonDateDialog extends AlertDialog implements DialogInterface.OnClickListener, DialogInterface.OnCancelListener {
+
+    public interface OnDateSetListener {
+        void onDateSet(int year, int month, int day, int hour, int minute);
+    }
+
+    private static int START_YEAR = 1700;
+    private static int END_YEAR = 2700;
+    private int currentYear;
+    private int currentMonth;
+    private int currentDay;
+    private int currentHour;
+    private int currentMinute;
+
+    private String[] bigMonths;
+    private String[] littleMonths;
+    private String[] hours;
+    private String[] simpleMinutes;
+
+    private WheelView yearView;
+    private WheelView monthView;
+    private WheelView dayView;
+    private WheelView hourView;
+    private WheelView minuteView;
+
+    private List<String> bigMonthsList;
+    private List<String> littleMonthsList;
+
+    private OnDateSetListener listener;
+
+    public CommonDateDialog(Context context, int year, int month, int day, int hour, int minute, OnDateSetListener listener){
+        super(context);
+        this.listener = listener;
+        initData();
+        initView(context, year, month, day, hour, minute);
+    }
+
+    private void initData() {
+        bigMonths = ApplicationUtil.getApplicationContext().getResources().getStringArray(R.array.big_month);
+        littleMonths = ApplicationUtil.getApplicationContext().getResources().getStringArray(R.array.small_month);
+        hours = ApplicationUtil.getApplicationContext().getResources().getStringArray(R.array.hour);
+        simpleMinutes = ApplicationUtil.getApplicationContext().getResources().getStringArray(R.array.simple_minute);
+        bigMonthsList = Arrays.asList(bigMonths);
+        littleMonthsList = Arrays.asList(littleMonths);
+    }
+
+    private void initView(Context context, int year, int month, int day, int hour, int minute) {
+        setTitle("日期选择");
+        setButton("确定", this);
+        setButton2("取消",this);
+        View contentView = LayoutInflater.from(context).inflate(R.layout.common_view_date_dialog, null);
+        yearView = (WheelView) contentView.findViewById(R.id.year);
+        monthView = (WheelView) contentView.findViewById(R.id.month);
+        dayView = (WheelView) contentView.findViewById(R.id.day);
+        hourView = (WheelView) contentView.findViewById(R.id.hour);
+        minuteView = (WheelView) contentView.findViewById(R.id.minute);
+
+        yearView.setAdapter(new NumericWheelAdapter(START_YEAR, END_YEAR));
+        yearView.setCyclic(true);
+        yearView.setLabel("年");
+        yearView.setCurrentItem(year - START_YEAR);
+
+        monthView.setAdapter(new NumericWheelAdapter(1, 12));
+        monthView.setCyclic(true);
+        monthView.setLabel("月");
+        monthView.setCurrentItem(month);
+
+        if (bigMonthsList.contains(String.valueOf(month + 1))) {
+            dayView.setAdapter(new NumericWheelAdapter(1, 31));
+        } else if (littleMonthsList.contains(String.valueOf(month + 1))) {
+            dayView.setAdapter(new NumericWheelAdapter(1 ,30));
+        } else {
+            if (DateFormatUtil.isLeapYear(year)) {
+                dayView.setAdapter(new NumericWheelAdapter(1, 29));
+            } else {
+                dayView.setAdapter(new NumericWheelAdapter(1 ,28));
+            }
+        }
+        dayView.setCyclic(true);
+        dayView.setLabel("日");
+        dayView.setCurrentItem(day - 1);
+
+        hourView.setAdapter(new ArrayWheelAdapter<String>(hours));
+        hourView.setLabel("时");
+        hourView.setCyclic(true);
+        hourView.setCurrentItem(hour);
+
+        minuteView.setAdapter(new ArrayWheelAdapter<String>(simpleMinutes));
+        minuteView.setLabel("分");
+        minuteView.setCyclic(true);
+        minuteView.setCurrentItem(minute);
+
+        yearView.addChangingListener(new YearWheelChangedListener());
+        monthView.addChangingListener(new MonthWheelChangedListener());
+
+        int textSize = adjustFontSize(getWindow().getWindowManager());
+        yearView.TEXT_SIZE = textSize;
+        monthView.TEXT_SIZE = textSize;
+        dayView.TEXT_SIZE = textSize;
+        hourView.TEXT_SIZE = textSize;
+        minuteView.TEXT_SIZE = textSize;
+
+        setView(contentView);
+    }
+
+    @Override
+    public void onClick(DialogInterface dialog, int which) {
+        currentYear = yearView.getCurrentItem() + START_YEAR;
+        currentMonth = monthView.getCurrentItem() + 1;
+        currentDay = dayView.getCurrentItem() + 1;
+        int hourIndex = hourView.getCurrentItem();
+        int minuteIndex = minuteView.getCurrentItem();
+        currentHour = Integer.valueOf(hours[hourIndex]);
+        currentMinute = Integer.valueOf(simpleMinutes[minuteIndex]);
+        if (listener != null) {
+            listener.onDateSet(currentYear, currentMonth, currentDay, currentHour, currentMinute);
+        }
+        dismiss();
+    }
+
+    @Override
+    public void onCancel(DialogInterface dialog) {
+        dismiss();
+    }
+
+    private int adjustFontSize(WindowManager windowManager) {
+        int screenWidth = windowManager.getDefaultDisplay().getWidth();
+        if (screenWidth <= 240) { // 240X320 屏幕
+            return 20;
+        } else if (screenWidth <= 320) { // 320X480 屏幕
+            return 24;
+        } else if (screenWidth <= 480) { // 480X800 或 480X854 屏幕
+            return 34;
+        } else if (screenWidth <= 540) { // 540X960 屏幕
+            return 36;
+        } else if (screenWidth <= 800) { // 800X1280 屏幕
+            return 40;
+        } else { // 大于 800X1280
+            return 40;
+        }
+    }
+
+    class YearWheelChangedListener implements OnWheelChangedListener {
+        @Override
+        public void onChanged(WheelView wheel, int oldValue, int newValue) {
+            int year = newValue + START_YEAR;
+            if (bigMonthsList.contains(String.valueOf(monthView.getCurrentItem() + 1))) {
+                dayView.setAdapter(new NumericWheelAdapter(1, 31));
+            } else if (littleMonthsList.contains(String.valueOf(monthView.getCurrentItem() + 1))) {
+                dayView.setAdapter(new NumericWheelAdapter(1, 30));
+            } else {
+                if (DateFormatUtil.isLeapYear(year)) {
+                    dayView.setAdapter(new NumericWheelAdapter(1, 29));
+                } else {
+                    dayView.setAdapter(new NumericWheelAdapter(1, 28));
+                }
+            }
+        }
+    }
+
+    class MonthWheelChangedListener implements OnWheelChangedListener {
+        @Override
+        public void onChanged(WheelView wheel, int oldValue, int newValue) {
+            int month = newValue + 1;
+            if (bigMonthsList.contains(String.valueOf(month))) {
+                dayView.setAdapter(new NumericWheelAdapter(1, 31));
+            } else if (littleMonthsList.contains(String.valueOf(month))) {
+                dayView.setAdapter(new NumericWheelAdapter(1, 30));
+            } else {
+                int year = yearView.getCurrentItem() + START_YEAR;
+                if (DateFormatUtil.isLeapYear(year)) {
+                    dayView.setAdapter(new NumericWheelAdapter(1, 29));
+                } else {
+                    dayView.setAdapter(new NumericWheelAdapter(1, 28));
+                }
+            }
+        }
+    }
+}
